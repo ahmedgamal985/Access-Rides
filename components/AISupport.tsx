@@ -8,6 +8,7 @@ import {
   TextInput,
   ScrollView,
   Alert,
+  Platform,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Speech from 'expo-speech';
@@ -74,6 +75,13 @@ const AISupport: React.FC<AISupportProps> = ({ onClose }) => {
       setSupportTickets(prev => [newTicket, ...prev]);
       setProblemDescription('');
       
+      // Show success message
+      Alert.alert(
+        '✅ Ticket Created Successfully',
+        'Your problem has been analyzed by AI and a support ticket has been created. Our team will review it shortly.',
+        [{ text: 'OK' }]
+      );
+      
       await Speech.speak('Problem analyzed and ticket created. Our support team will review it shortly.', { language: 'en' });
       
     } catch (error) {
@@ -118,6 +126,18 @@ const AISupport: React.FC<AISupportProps> = ({ onClose }) => {
       
       console.log('🤖 Calling Gemini API for AI analysis...');
 
+      const prompt = `You are an AI support assistant for an accessibility-focused ride-sharing app. 
+
+User Problem: "${problem}"
+
+Please provide a CONCISE technical summary (max 150 words) that includes:
+1. Brief issue description
+2. Likely cause
+3. Priority level (Low/Medium/High/Critical)
+4. Next steps for support team
+
+Format as a professional support ticket summary.`;
+
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`, {
         method: 'POST',
         headers: {
@@ -126,54 +146,60 @@ const AISupport: React.FC<AISupportProps> = ({ onClose }) => {
         body: JSON.stringify({
           contents: [{
             parts: [{
-              text: `Analyze the following user problem for an accessibility-focused ride-sharing app and provide a detailed technical summary and recommended actions:
-
-Problem: "${problem}"
-
-Please provide:
-1. A brief technical summary of the issue
-2. Likely causes
-3. Recommended troubleshooting steps
-4. Priority level (Low/Medium/High/Critical)
-5. Suggested escalation if needed
-
-Format your response as a structured analysis suitable for a support team.`
+              text: prompt
             }]
-          }]
+          }],
+          generationConfig: {
+            temperature: 0.3,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 200,
+          }
         }),
       });
 
       if (response.ok) {
         const data = await response.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.text || 'AI analysis completed successfully.';
+        const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        
+        if (aiResponse) {
+          console.log('✅ Gemini API response received');
+          return aiResponse.trim();
+        } else {
+          console.log('❌ No content in Gemini response');
+          return await simulateAIAnalysis(problem);
+        }
       } else {
-        console.log('Gemini API failed, using fallback analysis...');
+        const errorData = await response.text();
+        console.log('❌ Gemini API failed:', response.status, errorData);
         return await simulateAIAnalysis(problem);
       }
     } catch (error) {
-      console.log('Gemini API error, using fallback analysis...', error);
+      console.log('❌ Gemini API error:', error);
       return await simulateAIAnalysis(problem);
     }
   };
 
   const simulateAIAnalysis = async (problem: string): Promise<string> => {
     // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 1500));
     
-    // Mock AI analysis based on keywords
+    // Mock AI analysis based on keywords - more concise
     const keywords = problem.toLowerCase();
     let summary = '';
     
     if (keywords.includes('voice') || keywords.includes('speech') || keywords.includes('mic')) {
-      summary = 'Voice recognition issue detected. Problem likely related to microphone permissions, speech-to-text accuracy, or audio processing. Recommended actions: Check microphone permissions, test in quiet environment, update app if available.';
+      summary = 'VOICE RECOGNITION ISSUE - Priority: Medium\n\nIssue: Microphone or speech-to-text functionality not working properly.\nCause: Likely permissions or audio processing problem.\nAction: Check mic permissions, test in quiet environment, restart app.';
     } else if (keywords.includes('sign') || keywords.includes('camera') || keywords.includes('gesture')) {
-      summary = 'Sign language recognition issue identified. Problem may be related to camera permissions, lighting conditions, or AI model accuracy. Recommended actions: Ensure good lighting, check camera permissions, try different angles.';
+      summary = 'SIGN LANGUAGE DETECTION ISSUE - Priority: High\n\nIssue: Camera-based sign language recognition not functioning.\nCause: Camera permissions, lighting, or AI model accuracy.\nAction: Enable camera access, ensure good lighting, try different angles.';
     } else if (keywords.includes('book') || keywords.includes('ride') || keywords.includes('driver')) {
-      summary = 'Ride booking functionality issue reported. Problem could be related to location services, network connectivity, or payment processing. Recommended actions: Check internet connection, enable location services, verify payment method.';
+      summary = 'RIDE BOOKING FAILURE - Priority: Critical\n\nIssue: Unable to complete ride booking process.\nCause: Location services, network, or payment processing.\nAction: Check internet, enable GPS, verify payment method, contact support.';
     } else if (keywords.includes('access') || keywords.includes('accessibility') || keywords.includes('screen reader')) {
-      summary = 'Accessibility feature issue detected. Problem may affect users with disabilities using assistive technologies. Recommended actions: Check accessibility settings, test with screen reader, contact accessibility support.';
+      summary = 'ACCESSIBILITY FEATURE BROKEN - Priority: High\n\nIssue: Assistive technology compatibility problems.\nCause: Settings or app accessibility implementation.\nAction: Check accessibility settings, test with screen reader, escalate to accessibility team.';
+    } else if (keywords.includes('crash') || keywords.includes('freeze') || keywords.includes('hang')) {
+      summary = 'APP STABILITY ISSUE - Priority: High\n\nIssue: Application crashes or becomes unresponsive.\nCause: Memory leak, compatibility, or system resource issue.\nAction: Restart app, clear cache, check device compatibility, collect logs.';
     } else {
-      summary = 'General app issue reported. Problem requires further investigation by support team. User experience may be impacted. Recommended actions: Check app version, restart app, clear cache if needed.';
+      summary = 'GENERAL SUPPORT REQUEST - Priority: Medium\n\nIssue: User-reported problem requiring investigation.\nCause: Unknown, needs further analysis.\nAction: Review user details, test functionality, escalate if needed.';
     }
     
     return summary;
@@ -249,16 +275,20 @@ Format your response as a structured analysis suitable for a support team.`
               onPress={processProblemWithAI}
               disabled={!problemDescription.trim() || isProcessing}
             >
-              <MaterialIcons
-                name="psychology"
-                size={20}
-                color={(!problemDescription.trim() || isProcessing) ? "#ccc" : "#fff"}
-              />
+              {isProcessing ? (
+                <MaterialIcons name="hourglass-empty" size={20} color="#fff" />
+              ) : (
+                <MaterialIcons
+                  name="psychology"
+                  size={20}
+                  color={(!problemDescription.trim() || isProcessing) ? "#ccc" : "#fff"}
+                />
+              )}
               <Text style={[
                 styles.analyzeButtonText,
                 (!problemDescription.trim() || isProcessing) && styles.analyzeButtonTextDisabled
               ]}>
-                {isProcessing ? 'Analyzing...' : 'Analyze with AI'}
+                {isProcessing ? 'AI Analyzing...' : 'Analyze with AI'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -297,15 +327,17 @@ Format your response as a structured analysis suitable for a support team.`
                   <Text style={styles.problemText}>{ticket.problem}</Text>
                   
                   <View style={styles.summaryContainer}>
-                    <Text style={styles.summaryLabel}>AI Analysis:</Text>
+                    <View style={styles.summaryHeader}>
+                      <Text style={styles.summaryLabel}>AI Analysis Summary:</Text>
+                      <TouchableOpacity
+                        style={styles.speakButton}
+                        onPress={() => speakSummary(ticket.summary)}
+                      >
+                        <MaterialIcons name="volume_up" size={16} color="#007AFF" />
+                        <Text style={styles.speakButtonText}>Listen</Text>
+                      </TouchableOpacity>
+                    </View>
                     <Text style={styles.summaryText}>{ticket.summary}</Text>
-                    <TouchableOpacity
-                      style={styles.speakButton}
-                      onPress={() => speakSummary(ticket.summary)}
-                    >
-                      <MaterialIcons name="volume_up" size={16} color="#007AFF" />
-                      <Text style={styles.speakButtonText}>Listen</Text>
-                    </TouchableOpacity>
                   </View>
                 </View>
               ))
@@ -461,17 +493,22 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
   },
+  summaryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   summaryLabel: {
     fontSize: 14,
     fontWeight: '600',
     color: '#666',
-    marginBottom: 5,
   },
   summaryText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#333',
-    lineHeight: 20,
-    marginBottom: 8,
+    lineHeight: 18,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   speakButton: {
     flexDirection: 'row',
