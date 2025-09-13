@@ -49,7 +49,7 @@ const AISupport: React.FC<AISupportProps> = ({ onClose }) => {
 
   const processProblemWithAI = async () => {
     if (!problemDescription.trim()) {
-      Alert.alert('Error', 'Please describe your problem first.');
+      Alert.alert('Error', 'Please enter some text to summarize first.');
       return;
     }
 
@@ -60,7 +60,7 @@ const AISupport: React.FC<AISupportProps> = ({ onClose }) => {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
       
-      await Speech.speak('Processing your problem with AI...', { language: 'en' });
+      await Speech.speak('Summarizing your text with AI...', { language: 'en' });
       
       // Call real AI API
       const aiSummary = await callRealAIAnalysis(problemDescription);
@@ -78,16 +78,16 @@ const AISupport: React.FC<AISupportProps> = ({ onClose }) => {
       
       // Show success message
       Alert.alert(
-        '✅ Ticket Created Successfully',
-        'Your problem has been analyzed by AI and a support ticket has been created. Our team will review it shortly.',
+        '✅ Text Summarized Successfully',
+        'Your text has been summarized by AI and saved. You can listen to the summary or view it anytime.',
         [{ text: 'OK' }]
       );
       
-      await Speech.speak('Problem analyzed and ticket created. Our support team will review it shortly.', { language: 'en' });
+      await Speech.speak('Text summarized successfully. Summary saved and ready to view.', { language: 'en' });
       
     } catch (error) {
-      console.error('Error processing problem:', error);
-      Alert.alert('Error', 'Failed to process your problem. Please try again.');
+      console.error('Error processing text:', error);
+      Alert.alert('Error', 'Failed to summarize your text. Please try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -127,17 +127,17 @@ const AISupport: React.FC<AISupportProps> = ({ onClose }) => {
       
       console.log('🤖 Calling Gemini API for AI analysis...');
 
-      const prompt = `You are an AI support assistant for an accessibility-focused ride-sharing app. 
+      const prompt = `You are a text summarization AI for a ride-sharing app support system.
 
-User Problem: "${problem}"
+User Input: "${problem}"
 
-Please provide a CONCISE technical summary (max 150 words) that includes:
-1. Brief issue description
-2. Likely cause
-3. Priority level (Low/Medium/High/Critical)
-4. Next steps for support team
+Please provide a CONCISE summary (max 100 words) that:
+1. Captures the main issue/problem
+2. Extracts key technical details
+3. Identifies the core problem
+4. Suggests immediate action
 
-Format as a professional support ticket summary.`;
+Format as a brief, clear summary for support team reference. Focus on summarizing the user's input, not analyzing it.`;
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`, {
         method: 'POST',
@@ -185,23 +185,25 @@ Format as a professional support ticket summary.`;
     // Simulate API call delay
     await new Promise(resolve => setTimeout(resolve, 1500));
     
-    // Mock AI analysis based on keywords - more concise
-    const keywords = problem.toLowerCase();
+    // Simple text summarization based on length and keywords
+    const words = problem.split(' ').length;
     let summary = '';
     
-    if (keywords.includes('voice') || keywords.includes('speech') || keywords.includes('mic')) {
-      summary = 'VOICE RECOGNITION ISSUE - Priority: Medium\n\nIssue: Microphone or speech-to-text functionality not working properly.\nCause: Likely permissions or audio processing problem.\nAction: Check mic permissions, test in quiet environment, restart app.';
-    } else if (keywords.includes('sign') || keywords.includes('camera') || keywords.includes('gesture')) {
-      summary = 'SIGN LANGUAGE DETECTION ISSUE - Priority: High\n\nIssue: Camera-based sign language recognition not functioning.\nCause: Camera permissions, lighting, or AI model accuracy.\nAction: Enable camera access, ensure good lighting, try different angles.';
-    } else if (keywords.includes('book') || keywords.includes('ride') || keywords.includes('driver')) {
-      summary = 'RIDE BOOKING FAILURE - Priority: Critical\n\nIssue: Unable to complete ride booking process.\nCause: Location services, network, or payment processing.\nAction: Check internet, enable GPS, verify payment method, contact support.';
-    } else if (keywords.includes('access') || keywords.includes('accessibility') || keywords.includes('screen reader')) {
-      summary = 'ACCESSIBILITY FEATURE BROKEN - Priority: High\n\nIssue: Assistive technology compatibility problems.\nCause: Settings or app accessibility implementation.\nAction: Check accessibility settings, test with screen reader, escalate to accessibility team.';
-    } else if (keywords.includes('crash') || keywords.includes('freeze') || keywords.includes('hang')) {
-      summary = 'APP STABILITY ISSUE - Priority: High\n\nIssue: Application crashes or becomes unresponsive.\nCause: Memory leak, compatibility, or system resource issue.\nAction: Restart app, clear cache, check device compatibility, collect logs.';
+    if (words > 50) {
+      // Long text - extract key points
+      const sentences = problem.split(/[.!?]+/).filter(s => s.trim().length > 10);
+      const keySentences = sentences.slice(0, 2); // Take first 2 meaningful sentences
+      summary = `SUMMARY: ${keySentences.join('. ').trim()}`;
+    } else if (words > 20) {
+      // Medium text - clean up and shorten
+      summary = `SUMMARY: ${problem.replace(/\s+/g, ' ').trim()}`;
     } else {
-      summary = 'GENERAL SUPPORT REQUEST - Priority: Medium\n\nIssue: User-reported problem requiring investigation.\nCause: Unknown, needs further analysis.\nAction: Review user details, test functionality, escalate if needed.';
+      // Short text - keep as is
+      summary = `SUMMARY: ${problem}`;
     }
+    
+    // Add word count for reference
+    summary += `\n\n[Original: ${words} words → Summary: ${summary.split(' ').length} words]`;
     
     return summary;
   };
@@ -270,8 +272,8 @@ Format as a professional support ticket summary.`;
       <View style={styles.container}>
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <MaterialIcons name="support-agent" size={24} color="#007AFF" />
-            <Text style={styles.headerTitle}>AI Support</Text>
+            <MaterialIcons name="summarize" size={24} color="#007AFF" />
+            <Text style={styles.headerTitle}>AI Text Summarizer</Text>
           </View>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
             <MaterialIcons name="close" size={24} color="#666" />
@@ -281,15 +283,15 @@ Format as a professional support ticket summary.`;
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           {/* Problem Input Section */}
           <View style={styles.inputSection}>
-            <Text style={styles.sectionTitle}>Describe Your Problem</Text>
+            <Text style={styles.sectionTitle}>Enter Text to Summarize</Text>
             <TextInput
               style={styles.problemInput}
               value={problemDescription}
               onChangeText={setProblemDescription}
-              placeholder="Tell us what's wrong... (e.g., Voice commands not working, App keeps crashing, etc.)"
+              placeholder="Paste your long text here... (e.g., Long error messages, detailed descriptions, etc.)"
               placeholderTextColor="#999"
               multiline
-              maxLength={500}
+              maxLength={1000}
             />
             <TouchableOpacity
               style={[
@@ -312,19 +314,19 @@ Format as a professional support ticket summary.`;
                 styles.analyzeButtonText,
                 (!problemDescription.trim() || isProcessing) && styles.analyzeButtonTextDisabled
               ]}>
-                {isProcessing ? 'AI Analyzing...' : 'Analyze with AI'}
+                {isProcessing ? 'Summarizing...' : 'Summarize Text'}
               </Text>
             </TouchableOpacity>
           </View>
 
-          {/* Support Tickets Section */}
+          {/* Summaries Section */}
           <View style={styles.ticketsSection}>
-            <Text style={styles.sectionTitle}>Your Support Tickets</Text>
+            <Text style={styles.sectionTitle}>Your Text Summaries</Text>
             {supportTickets.length === 0 ? (
               <View style={styles.emptyState}>
-                <MaterialIcons name="inbox" size={48} color="#ccc" />
-                <Text style={styles.emptyText}>No support tickets yet</Text>
-                <Text style={styles.emptySubtext}>Describe a problem above to create your first ticket</Text>
+                <MaterialIcons name="summarize" size={48} color="#ccc" />
+                <Text style={styles.emptyText}>No summaries yet</Text>
+                <Text style={styles.emptySubtext}>Paste your long text above to create your first summary</Text>
               </View>
             ) : (
               supportTickets.map((ticket) => (
@@ -352,7 +354,7 @@ Format as a professional support ticket summary.`;
                   
                   <View style={styles.summaryContainer}>
                     <View style={styles.summaryHeader}>
-                      <Text style={styles.summaryLabel}>AI Analysis Summary:</Text>
+                      <Text style={styles.summaryLabel}>AI Text Summary:</Text>
                       <TouchableOpacity
                         style={[styles.speakButton, isSpeaking && styles.speakButtonActive]}
                         onPress={() => speakSummary(ticket.summary)}
