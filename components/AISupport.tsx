@@ -29,6 +29,7 @@ interface AISupportProps {
 const AISupport: React.FC<AISupportProps> = ({ onClose }) => {
   const [problemDescription, setProblemDescription] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([
     {
       id: '1',
@@ -207,10 +208,33 @@ Format as a professional support ticket summary.`;
 
   const speakSummary = async (summary: string) => {
     try {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      await Speech.speak(summary, { language: 'en' });
+      setIsSpeaking(true);
+      
+      if (Platform.OS !== 'web') {
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+      
+      // Clean the summary text for better speech
+      const cleanSummary = summary
+        .replace(/\n\n/g, '. ')
+        .replace(/\n/g, '. ')
+        .replace(/Priority: \w+/g, '')
+        .replace(/Issue:/g, 'Issue:')
+        .replace(/Cause:/g, 'Cause:')
+        .replace(/Action:/g, 'Action:')
+        .trim();
+      
+      await Speech.speak(cleanSummary, { 
+        language: 'en',
+        rate: 0.8,
+        pitch: 1.0,
+        onDone: () => setIsSpeaking(false),
+        onError: () => setIsSpeaking(false)
+      });
     } catch (error) {
       console.error('Error speaking summary:', error);
+      setIsSpeaking(false);
+      Alert.alert('Speech Error', 'Unable to read the summary. Please check your device audio settings.');
     }
   };
 
@@ -279,7 +303,7 @@ Format as a professional support ticket summary.`;
                 <MaterialIcons name="hourglass-empty" size={20} color="#fff" />
               ) : (
                 <MaterialIcons
-                  name="psychology"
+                  name="smart-toy"
                   size={20}
                   color={(!problemDescription.trim() || isProcessing) ? "#ccc" : "#fff"}
                 />
@@ -330,11 +354,18 @@ Format as a professional support ticket summary.`;
                     <View style={styles.summaryHeader}>
                       <Text style={styles.summaryLabel}>AI Analysis Summary:</Text>
                       <TouchableOpacity
-                        style={styles.speakButton}
+                        style={[styles.speakButton, isSpeaking && styles.speakButtonActive]}
                         onPress={() => speakSummary(ticket.summary)}
+                        disabled={isSpeaking}
                       >
-                        <MaterialIcons name="volume_up" size={16} color="#007AFF" />
-                        <Text style={styles.speakButtonText}>Listen</Text>
+                        <MaterialIcons 
+                          name={isSpeaking ? "volume_off" : "volume_up"} 
+                          size={16} 
+                          color={isSpeaking ? "#FF6B6B" : "#007AFF"} 
+                        />
+                        <Text style={[styles.speakButtonText, isSpeaking && styles.speakButtonTextActive]}>
+                          {isSpeaking ? 'Speaking...' : 'Listen'}
+                        </Text>
                       </TouchableOpacity>
                     </View>
                     <Text style={styles.summaryText}>{ticket.summary}</Text>
@@ -514,12 +545,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+  },
+  speakButtonActive: {
+    backgroundColor: 'rgba(255, 107, 107, 0.1)',
   },
   speakButtonText: {
     fontSize: 12,
     color: '#007AFF',
     marginLeft: 4,
     fontWeight: '500',
+  },
+  speakButtonTextActive: {
+    color: '#FF6B6B',
   },
 });
 
