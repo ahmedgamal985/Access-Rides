@@ -1,70 +1,93 @@
-# Access Rides - تطبيق النقل الميسر
+# Access Rides - Accessible Transportation App
 
-تطبيق React Native متقدم للنقل الميسر مع دعم كامل لذوي الاحتياجات الخاصة.
+A comprehensive React Native application for accessible transportation with full support for people with disabilities.
 
-## الميزات الرئيسية
+## Key Features
 
-### 🚗 نظام النقل الميسر
-- حجز الرحلات بسهولة
-- اختيار السائق المناسب
-- تتبع الرحلة في الوقت الفعلي
+### 🚗 Accessible Transportation System
+- Easy ride booking
+- Driver matching system
+- Real-time trip tracking
+- Accessible vehicle options
 
-### 🎤 التواصل الصوتي
-- تسجيل الصوت وتحويله لنص
-- تحويل النص إلى كلام
-- دعم VoiceOver
+### 🎤 Voice Communication
+- Voice recording and speech-to-text conversion
+- Text-to-speech functionality
+- VoiceOver support
+- Audio message support
 
-### 👋 لغة الإشارة
-- كاميرا لغة الإشارة المتقدمة
-- ترجمة الإشارات إلى نص
-- ترجمة رسائل السائق بلغة الإشارة
+### 👋 Sign Language Integration
+- Advanced sign language camera
+- Sign-to-text translation
+- Driver message translation to sign language
+- Interactive sign language dictionary
 
-### 💬 نظام المحادثة المتقدم
-- محادثة نصية مع السائق
-- رسائل صوتية
-- رسائل لغة الإشارة
-- ترجمة فورية للرسائل
+### 💬 Advanced Chat System
+- Text chat with drivers
+- Voice messages
+- Sign language messages
+- Real-time message translation
+- Multi-modal communication
 
-### ♿ إمكانية الوصول
-- دعم كامل لذوي الاحتياجات الخاصة
-- إعدادات إمكانية الوصول قابلة للتخصيص
-- واجهة مستخدم محسنة
+### ♿ Accessibility Features
+- Full support for people with disabilities
+- Customizable accessibility settings
+- Enhanced user interface
+- VoiceOver and screen reader support
+- Haptic feedback
+- High contrast mode
 
-## التقنيات المستخدمة
+## Technologies Used
 
-- **React Native** - إطار العمل الأساسي
-- **Expo** - منصة التطوير
-- **TypeScript** - لغة البرمجة
-- **Expo Camera** - كاميرا لغة الإشارة
-- **Expo Speech** - تحويل النص إلى كلام
-- **Expo Audio** - تسجيل الصوت
+- **React Native** - Core framework
+- **Expo** - Development platform
+- **TypeScript** - Programming language
+- **Expo Camera** - Sign language camera
+- **Expo Speech** - Text-to-speech
+- **Expo Audio** - Voice recording
+- **Google Maps** - Navigation and location services
+- **AI Integration** - Advanced translation and accessibility features
 
-## التثبيت والتشغيل
+## Installation & Setup
 
-### المتطلبات
+### Prerequisites
 - Node.js 18+
-- npm أو yarn
+- npm or yarn
 - Expo CLI
+- Android Studio (for Android development)
+- Xcode (for iOS development)
 
-### خطوات التثبيت
+### Installation Steps
 
-1. **استنساخ المشروع**
+1. **Clone the repository**
 ```bash
-git clone https://github.com/USERNAME/Access-Ride.git
-cd Access-Ride
+git clone https://github.com/ahmedgamal985/Access-Rides.git
+cd Access-Rides
 ```
 
-2. **تثبيت التبعيات**
+2. **Install dependencies**
 ```bash
 npm install
+cd backend && npm install
 ```
 
-3. **تشغيل التطبيق**
+3. **Environment Setup**
 ```bash
-npm start
+# Create environment file for backend
+cp backend/env.example backend/.env
+# Add your API keys to backend/.env
 ```
 
-4. **تشغيل على الأجهزة**
+4. **Start the application**
+```bash
+# Start the frontend
+npm start
+
+# Start the backend (in a separate terminal)
+cd backend && npm start
+```
+
+5. **Run on devices**
 ```bash
 # Android
 npm run android
@@ -76,65 +99,107 @@ npm run ios
 npm run web
 ```
 
-## هيكل المشروع
+## Project Structure
 
 ```
-Access-Ride/
-├── components/          # مكونات React
+Access-Rides/
+├── components/              # React components
+│   ├── AccessibilitySettings.tsx
 │   ├── DriverChatInterface.tsx
-│   ├── SimpleSignTranslator.tsx
+│   ├── SignLanguageCamera.tsx
 │   ├── VoiceRecorder.tsx
 │   └── ...
-├── backend/            # الخادم الخلفي
-├── types/              # تعريفات TypeScript
-├── App.tsx            # الملف الرئيسي
-└── package.json       # تبعيات المشروع
+├── backend/                 # Backend server
+│   ├── routes/             # API routes
+│   ├── server.js           # Main server file
+│   └── package.json
+├── config/                 # Configuration files
+├── types/                  # TypeScript definitions
+├── assets/                 # Images and icons
+├── App.tsx                 # Main application file
+└── package.json           # Project dependencies
 ```
 
-## الميزات المتقدمة
+## Advanced Features
 
-### ترجمة لغة الإشارة
-- قاموس شامل لرموز الإشارة
-- رسوم متحركة تفاعلية
-- دليل الإشارات المرئي
+### Sign Language Translation
+- Comprehensive sign language dictionary
+- Interactive animations
+- Visual sign language guide
+- Real-time translation
 
-### نظام المحادثة
-- رسائل فورية مع السائق
-- دعم الرسائل المتعددة الأنواع
-- ترجمة تلقائية للرسائل
+### Chat System
+- Instant messaging with drivers
+- Multi-modal message support
+- Automatic message translation
+- Voice and sign language integration
 
-### إمكانية الوصول
-- دعم VoiceOver
-- تأثيرات Haptic
-- ألوان متباينة
-- نصوص بديلة
+### Accessibility
+- VoiceOver support
+- Haptic feedback
+- High contrast themes
+- Alternative text for images
+- Screen reader optimization
+- Customizable font sizes
 
-## المساهمة
+## API Integration
 
-نرحب بالمساهمات! يرجى:
+### Required API Keys
+- Google Maps API (for navigation)
+- OpenAI API (for AI features)
+- Google Cloud Service Account (for advanced features)
 
-1. Fork المشروع
-2. إنشاء branch جديد (`git checkout -b feature/AmazingFeature`)
-3. Commit التغييرات (`git commit -m 'Add some AmazingFeature'`)
-4. Push إلى Branch (`git push origin feature/AmazingFeature`)
-5. فتح Pull Request
+### Environment Variables
+Create a `backend/.env` file with:
+```
+GOOGLE_MAPS_API_KEY=your_google_maps_key
+OPENAI_API_KEY=your_openai_key
+PORT=3000
+```
 
-## الترخيص
+## Contributing
 
-هذا المشروع مرخص تحت رخصة MIT - راجع ملف [LICENSE](LICENSE) للتفاصيل.
+We welcome contributions! Please:
 
-## التواصل
+1. Fork the project
+2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
-- **المطور**: [اسم المطور]
-- **البريد الإلكتروني**: [email@example.com]
-- **GitHub**: [@username](https://github.com/username)
+## Development Guidelines
 
-## شكر وتقدير
+- Follow TypeScript best practices
+- Write comprehensive tests
+- Ensure accessibility compliance
+- Document new features
+- Follow the existing code style
 
-- فريق Expo للدعم الرائع
-- مجتمع React Native
-- جميع المساهمين في المشروع
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Contact
+
+- **Developer**: Ahmed Gamal
+- **GitHub**: [@ahmedgamal985](https://github.com/ahmedgamal985)
+- **Repository**: [Access-Rides](https://github.com/ahmedgamal985/Access-Rides)
+
+## Acknowledgments
+
+- Expo team for excellent support
+- React Native community
+- All contributors to the project
+- Accessibility advocates and testers
+
+## Roadmap
+
+- [ ] Enhanced AI translation
+- [ ] Offline mode support
+- [ ] Multi-language support
+- [ ] Advanced accessibility features
+- [ ] Integration with more transportation services
 
 ---
 
-**ملاحظة**: هذا المشروع مصمم لتحسين تجربة النقل لذوي الاحتياجات الخاصة وجعل النقل أكثر سهولة وشمولية للجميع.
+**Note**: This project is designed to improve transportation accessibility for people with disabilities and make transportation more inclusive and accessible for everyone.
