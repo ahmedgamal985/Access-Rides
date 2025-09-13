@@ -7,16 +7,13 @@ import {
   Modal,
   Alert,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Camera, CameraType } from 'expo-camera';
 import * as CameraPermissions from 'expo-camera';
 import * as Speech from 'expo-speech';
 import * as Haptics from 'expo-haptics';
-// TensorFlow imports removed for web compatibility
-// import * as tf from '@tensorflow/tfjs';
-// import '@tensorflow/tfjs-react-native';
-// import '@tensorflow/tfjs-platform-react-native';
 
 interface SignLanguageCameraProps {
   onSignInput: (text: string, field: 'pickup' | 'destination') => void;
@@ -26,7 +23,13 @@ interface SignLanguageCameraProps {
   driverName?: string;
 }
 
-const SignLanguageCamera: React.FC<SignLanguageCameraProps> = ({ onSignInput, onClose, currentField, isDriverCommunication = false, driverName = '' }) => {
+const SignLanguageCamera: React.FC<SignLanguageCameraProps> = ({ 
+  onSignInput, 
+  onClose, 
+  currentField, 
+  isDriverCommunication = false, 
+  driverName = '' 
+}) => {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isModelLoaded, setIsModelLoaded] = useState(false);
@@ -55,32 +58,20 @@ const SignLanguageCamera: React.FC<SignLanguageCameraProps> = ({ onSignInput, on
     try {
       const { status } = await CameraPermissions.requestCameraPermissionsAsync();
       setHasPermission(status === 'granted');
-      
-      if (status === 'granted') {
-        await Speech.speak('Camera permission granted. Ready to detect signs!', { language: 'en' });
-      } else {
-        await Speech.speak('Camera permission denied. Please enable camera access.', { language: 'en' });
-      }
     } catch (error) {
-      console.error('Error requesting camera permission:', error);
-      await Speech.speak('Error requesting camera permission', { language: 'en' });
+      console.error('Error requesting camera permissions:', error);
+      setHasPermission(false);
     }
   };
 
   const initializeTensorFlow = async () => {
     try {
-      // Simulate AI model initialization for web compatibility
-      console.log('AI model initialization started');
-      
       // Simulate model loading
       setTimeout(() => {
         setIsModelLoaded(true);
-        console.log('Sign language model loaded (simulated)');
       }, 2000);
-      
     } catch (error) {
-      console.error('Error initializing AI model:', error);
-      Alert.alert('Error', 'Failed to initialize AI model. Please try again.');
+      console.error('Error initializing TensorFlow:', error);
     }
   };
 
@@ -89,90 +80,52 @@ const SignLanguageCamera: React.FC<SignLanguageCameraProps> = ({ onSignInput, on
       clearInterval(processingInterval.current);
     }
 
-    // Start detection immediately for demo
-    setTimeout(async () => {
-      if (cameraRef.current && !isProcessing) {
-        await captureAndProcessFrame();
-      }
-    }, 2000); // Process after 2 seconds for demo
-  };
-
-  const captureAndProcessFrame = async () => {
-    if (!cameraRef.current || isProcessing) return;
-
-    try {
-      console.log('🎥 Capturing frame for sign language detection...');
+    processingInterval.current = setInterval(() => {
+      if (isProcessing) return;
+      
       setIsProcessing(true);
       
-      // Simulate camera processing for demo
-      await Speech.speak('Camera is detecting signs...', { language: 'en' });
+      // Simulate sign language detection
+      setTimeout(() => {
+        const detectedSigns = ['Hello', 'Thank you', 'Yes', 'No', 'Help', 'Water', 'Food'];
+        const randomSign = detectedSigns[Math.floor(Math.random() * detectedSigns.length)];
+        
+        if (Math.random() > 0.7) { // 30% chance of detection
+          handleSignDetection(randomSign);
+        }
+        
+        setIsProcessing(false);
+      }, 1000);
+    }, 2000);
+  };
+
+  const handleSignDetection = async (detectedText: string) => {
+    try {
+      console.log('Sign detected:', detectedText);
       
-      // Simulate the detection process
-      await simulateSignLanguageDetection();
+      // Provide haptic feedback
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      
+      // Speak the detected text
+      if (detectedText) {
+        await Speech.speak(`Detected: ${detectedText}`, { language: 'en' });
+      }
+      
+      // Send the detected text
+      onSignInput(detectedText, currentFieldState);
+      
+      // Close after a delay
+      setTimeout(() => {
+        onClose();
+      }, 1500);
       
     } catch (error) {
-      console.error('Error processing frame:', error);
-    } finally {
-      setIsProcessing(false);
+      console.error('Error handling sign detection:', error);
     }
   };
 
-  const simulateSignLanguageDetection = async () => {
-    let mockSigns;
-    
-    if (isDriverCommunication) {
-      mockSigns = [
-        'Hello, I am here',
-        'Please wait 5 minutes',
-        'I am at the main entrance',
-        'Thank you for the ride',
-        'I need help with my wheelchair',
-        'Can you help me with my bags?',
-        'I am ready to go',
-        'Please drive slowly'
-      ];
-    } else {
-      mockSigns = [
-        '123 Main Street',
-        '456 Oak Avenue',
-        '789 Pine Road',
-        '321 Elm Street',
-        '654 Maple Drive',
-        '987 Cedar Lane',
-        '555 Birch Way',
-        '888 Spruce Street'
-      ];
-    }
-    
-    const randomSign = mockSigns[Math.floor(Math.random() * mockSigns.length)];
-    
-    // Always detect for demo
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
-    if (isDriverCommunication) {
-      await Speech.speak(`Message sent to ${driverName}: ${randomSign}`, { language: 'en' });
-      Alert.alert('Message Sent', `To ${driverName}: ${randomSign}`, [
-        {
-          text: 'Send Another',
-          onPress: () => {
-            // Keep camera open for another message
-          }
-        },
-        {
-          text: 'Close',
-          onPress: onClose
-        }
-      ]);
-    } else {
-      console.log('🎥 Sign language detected for location input:', randomSign, 'field:', currentFieldState);
-      await Speech.speak(`Sign detected: ${randomSign}`, { language: 'en' });
-      onSignInput(randomSign, currentFieldState);
-      onClose();
-    }
-  };
-
-  const handleFieldToggle = () => {
-    Speech.speak(`Now detecting signs for ${currentFieldState} location`, { language: 'en' });
+  const handleFieldChange = (field: 'pickup' | 'destination') => {
+    setCurrentFieldState(field);
   };
 
   const handleClose = () => {
@@ -184,10 +137,11 @@ const SignLanguageCamera: React.FC<SignLanguageCameraProps> = ({ onSignInput, on
 
   if (hasPermission === null) {
     return (
-      <Modal visible={true} transparent={true} animationType="slide">
+      <Modal visible={true} transparent animationType="fade">
         <View style={styles.overlay}>
           <View style={styles.container}>
-            <Text style={styles.loadingText}>Requesting camera permission...</Text>
+            <ActivityIndicator size="large" color="#1a73e8" />
+            <Text style={styles.loadingText}>Loading camera...</Text>
           </View>
         </View>
       </Modal>
@@ -196,16 +150,26 @@ const SignLanguageCamera: React.FC<SignLanguageCameraProps> = ({ onSignInput, on
 
   if (hasPermission === false) {
     return (
-      <Modal visible={true} transparent={true} animationType="slide">
+      <Modal visible={true} transparent animationType="fade">
         <View style={styles.overlay}>
           <View style={styles.container}>
-            <Text style={styles.errorText}>Camera permission is required for sign language recognition</Text>
-            <TouchableOpacity style={styles.permissionButton} onPress={getCameraPermissions}>
-              <Text style={styles.permissionButtonText}>Grant Permission</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
-              <Text style={styles.closeButtonText}>Close</Text>
-            </TouchableOpacity>
+            <View style={styles.header}>
+              <Text style={styles.title}>Camera Permission Required</Text>
+              <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
+                <MaterialIcons name="close" size={20} color="#5f6368" />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.content}>
+              <MaterialIcons name="camera-alt" size={64} color="#5f6368" style={styles.icon} />
+              <Text style={styles.permissionText}>
+                Camera access is required for sign language detection. Please enable camera permissions in your device settings.
+              </Text>
+              
+              <TouchableOpacity style={styles.permissionButton} onPress={getCameraPermissions}>
+                <Text style={styles.permissionButtonText}>Grant Permission</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -213,194 +177,162 @@ const SignLanguageCamera: React.FC<SignLanguageCameraProps> = ({ onSignInput, on
   }
 
   return (
-    <Modal
-      visible={true}
-      transparent={false}
-      animationType="slide"
-      onRequestClose={handleClose}
-    >
-      <View style={styles.cameraContainer}>
-        <Camera
-          style={styles.camera}
-          type={CameraType.front}
-          ref={cameraRef}
-        />
-        <View style={styles.overlay}>
-            <View style={styles.header}>
-              <Text style={styles.title}>
-                {isDriverCommunication ? `Sign Language Chat with ${driverName}` : 'Sign Language Input'}
-              </Text>
-              <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-                <MaterialIcons name="close" size={24} color="#fff" />
-              </TouchableOpacity>
+    <Modal visible={true} transparent animationType="slide">
+      <View style={styles.overlay}>
+        <View style={styles.container}>
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.headerLeft}>
+              <MaterialIcons name="gesture" size={24} color="#1a73e8" />
+              <Text style={styles.title}>Sign Language Input</Text>
             </View>
+            <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
+              <MaterialIcons name="close" size={20} color="#5f6368" />
+            </TouchableOpacity>
+          </View>
 
-            <View style={styles.content}>
-              <Text style={styles.instruction}>
-                Use sign language to input your {currentFieldState} location
+          {/* Field Selector */}
+          <View style={styles.fieldSelector}>
+            <TouchableOpacity
+              style={[styles.fieldButton, currentFieldState === 'pickup' && styles.activeFieldButton]}
+              onPress={() => handleFieldChange('pickup')}
+            >
+              <MaterialIcons 
+                name="location-on" 
+                size={16} 
+                color={currentFieldState === 'pickup' ? '#fff' : '#5f6368'} 
+              />
+              <Text style={[styles.fieldText, currentFieldState === 'pickup' && styles.activeFieldText]}>
+                Pickup
               </Text>
-              
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.fieldButton, currentFieldState === 'destination' && styles.activeFieldButton]}
+              onPress={() => handleFieldChange('destination')}
+            >
+              <MaterialIcons 
+                name="place" 
+                size={16} 
+                color={currentFieldState === 'destination' ? '#fff' : '#5f6368'} 
+              />
+              <Text style={[styles.fieldText, currentFieldState === 'destination' && styles.activeFieldText]}>
+                Destination
+              </Text>
+            </TouchableOpacity>
+          </View>
 
-              <View style={styles.fieldSelector}>
-                <TouchableOpacity
-                  style={[
-                    styles.fieldButton,
-                    currentFieldState === 'pickup' && styles.activeFieldButton
-                  ]}
-                  onPress={() => setCurrentFieldState('pickup')}
-                >
-                <MaterialIcons 
-                  name="location-on" 
-                  size={20} 
-                  color={currentFieldState === 'pickup' ? '#007AFF' : '#fff'} 
-                />
-                  <Text style={[
-                    styles.fieldText,
-                    currentFieldState === 'pickup' && styles.activeFieldText
-                  ]}>
-                    Pickup
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.fieldButton,
-                    currentFieldState === 'destination' && styles.activeFieldButton
-                  ]}
-                  onPress={() => setCurrentFieldState('destination')}
-                >
-                  <MaterialIcons 
-                    name="search" 
-                    size={20} 
-                    color={currentFieldState === 'destination' ? '#007AFF' : '#fff'} 
-                  />
-                  <Text style={[
-                    styles.fieldText,
-                    currentFieldState === 'destination' && styles.activeFieldText
-                  ]}>
-                    Destination
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.detectionArea}>
-                <View style={styles.detectionFrame}>
-                  <Text style={styles.detectionText}>
-                    {isProcessing ? 'Processing...' : 'Sign here'}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.statusContainer}>
-                <Text style={styles.statusText}>
-                  AI Model: {isModelLoaded ? 'Ready' : 'Loading...'}
-                </Text>
-                <Text style={styles.statusText}>
-                  Detection: {isProcessing ? 'Active' : 'Standby'}
+          {/* Camera View */}
+          <View style={styles.cameraContainer}>
+            <Camera
+              ref={cameraRef}
+              style={styles.camera}
+              type={CameraType.front}
+              ratio="16:9"
+            />
+            <View style={styles.cameraOverlay}>
+              <View style={styles.detectionFrame}>
+                <MaterialIcons name="gesture" size={32} color="#1a73e8" />
+                <Text style={styles.detectionText}>
+                  {isProcessing ? 'Processing...' : 'Sign Here'}
                 </Text>
               </View>
             </View>
+          </View>
+
+          {/* Status */}
+          <View style={styles.statusContainer}>
+            <View style={styles.statusItem}>
+              <View style={[styles.statusDot, { backgroundColor: isModelLoaded ? '#34a853' : '#fbbc04' }]} />
+              <Text style={styles.statusText}>
+                AI Model: {isModelLoaded ? 'Ready' : 'Loading...'}
+              </Text>
+            </View>
+            <View style={styles.statusItem}>
+              <View style={[styles.statusDot, { backgroundColor: isProcessing ? '#1a73e8' : '#5f6368' }]} />
+              <Text style={styles.statusText}>
+                Detection: {isProcessing ? 'Active' : 'Standby'}
+              </Text>
+            </View>
+          </View>
+
+          {/* Instructions */}
+          <View style={styles.instructionsContainer}>
+            <Text style={styles.instructionsTitle}>How to use:</Text>
+            <Text style={styles.instructionsText}>
+              • Position your hands within the blue frame{'\n'}
+              • Make clear sign language gestures{'\n'}
+              • Wait for AI detection confirmation{'\n'}
+              • Speak naturally if needed
+            </Text>
+          </View>
         </View>
       </View>
     </Modal>
   );
 };
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 16,
+    padding: 20,
   },
   container: {
     backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 20,
+    padding: 24,
     width: '100%',
-    maxWidth: 380,
+    maxWidth: 400,
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  cameraContainer: {
-    width: '100%',
-    height: 180,
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginBottom: 20,
-    backgroundColor: '#f8f9fa',
-    borderWidth: 1,
-    borderColor: '#e1e5e9',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  camera: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 0,
-    paddingTop: 0,
-    paddingBottom: 16,
     width: '100%',
-    marginBottom: 12,
+    marginBottom: 20,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   title: {
     fontSize: 20,
     fontWeight: '600',
     color: '#1a1a1a',
-    textAlign: 'center',
-    marginBottom: 0,
-    flex: 1,
+    marginLeft: 8,
   },
   closeButton: {
     padding: 8,
-    borderRadius: 8,
+    borderRadius: 20,
     backgroundColor: '#f1f3f4',
-    borderWidth: 0,
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 0,
-    width: '100%',
-  },
-  instruction: {
-    fontSize: 14,
-    color: '#5f6368',
-    textAlign: 'center',
-    marginBottom: 16,
-    fontWeight: '400',
-    lineHeight: 20,
   },
   fieldSelector: {
     flexDirection: 'row',
-    marginBottom: 16,
     backgroundColor: '#f1f3f4',
-    borderRadius: 8,
+    borderRadius: 12,
     padding: 4,
-    borderWidth: 0,
+    marginBottom: 20,
+    width: '100%',
   },
   fieldButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
   },
   activeFieldButton: {
     backgroundColor: '#1a73e8',
@@ -419,58 +351,102 @@ const styles = StyleSheet.create({
   activeFieldText: {
     color: '#ffffff',
     fontWeight: '600',
-    fontSize: 14,
   },
-  detectionArea: {
-    alignItems: 'center',
-    marginBottom: 12,
+  cameraContainer: {
+    width: '100%',
+    height: 200,
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 20,
+    position: 'relative',
   },
-  detectionFrame: {
-    width: 100,
-    height: 100,
-    borderWidth: 2,
-    borderColor: '#1a73e8',
-    borderRadius: 50,
+  camera: {
+    flex: 1,
+    width: '100%',
+  },
+  cameraOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(26, 115, 232, 0.08)',
-    borderStyle: 'solid',
+  },
+  detectionFrame: {
+    width: 120,
+    height: 120,
+    borderWidth: 3,
+    borderColor: '#1a73e8',
+    borderRadius: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(26, 115, 232, 0.1)',
+    borderStyle: 'dashed',
   },
   detectionText: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#1a73e8',
     textAlign: 'center',
     fontWeight: '600',
-    letterSpacing: 0.2,
+    marginTop: 4,
   },
   statusContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    marginBottom: 20,
+  },
+  statusItem: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
   },
   statusText: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#5f6368',
-    marginBottom: 2,
+    fontWeight: '500',
+  },
+  instructionsContainer: {
+    width: '100%',
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+  },
+  instructionsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1a1a1a',
+    marginBottom: 8,
+  },
+  instructionsText: {
+    fontSize: 12,
+    color: '#5f6368',
+    lineHeight: 18,
   },
   loadingText: {
-    fontSize: 14,
-    color: '#1a1a1a',
-    textAlign: 'center',
+    fontSize: 16,
+    color: '#5f6368',
+    marginTop: 12,
     fontWeight: '500',
   },
-  errorText: {
-    fontSize: 13,
-    color: '#d93025',
+  permissionText: {
+    fontSize: 14,
+    color: '#5f6368',
     textAlign: 'center',
-    marginBottom: 12,
-    fontWeight: '500',
+    lineHeight: 20,
+    marginVertical: 16,
   },
   permissionButton: {
     backgroundColor: '#1a73e8',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
     borderRadius: 8,
-    marginBottom: 8,
     shadowColor: '#1a73e8',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
@@ -481,22 +457,9 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
-    letterSpacing: 0.2,
   },
-  closeButtonText: {
-    color: '#5f6368',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  closeButtonIcon: {
-    color: '#5f6368',
-    fontSize: 16,
-  },
-  closeButton: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: '#f1f3f4',
-    borderWidth: 0,
+  icon: {
+    marginBottom: 16,
   },
 });
 

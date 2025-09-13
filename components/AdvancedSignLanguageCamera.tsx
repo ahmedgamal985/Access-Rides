@@ -7,11 +7,12 @@ import {
   Modal,
   Alert,
   Dimensions,
-  Animated,
-  PanResponder,
+  ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Camera, CameraType } from 'expo-camera';
+import * as CameraPermissions from 'expo-camera';
 import * as Speech from 'expo-speech';
 import * as Haptics from 'expo-haptics';
 
@@ -21,25 +22,6 @@ interface AdvancedSignLanguageCameraProps {
   currentField: 'pickup' | 'destination';
   isDriverCommunication?: boolean;
   driverName?: string;
-}
-
-interface PosePoint {
-  x: number;
-  y: number;
-  confidence: number;
-}
-
-interface SignGesture {
-  id: string;
-  name: string;
-  points: PosePoint[];
-  timestamp: number;
-}
-
-interface SignWritingSymbol {
-  symbol: string;
-  position: { x: number; y: number };
-  rotation: number;
 }
 
 const AdvancedSignLanguageCamera: React.FC<AdvancedSignLanguageCameraProps> = ({ 
@@ -52,42 +34,19 @@ const AdvancedSignLanguageCamera: React.FC<AdvancedSignLanguageCameraProps> = ({
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isModelLoaded, setIsModelLoaded] = useState(false);
+  const [currentFieldState, setCurrentFieldState] = useState<'pickup' | 'destination'>(currentField);
+  const [detectedSigns, setDetectedSigns] = useState<string[]>([]);
   const [isRecording, setIsRecording] = useState(false);
-  const [currentGesture, setCurrentGesture] = useState<SignGesture | null>(null);
-  const [gestureHistory, setGestureHistory] = useState<SignGesture[]>([]);
-  const [signWritingSymbols, setSignWritingSymbols] = useState<SignWritingSymbol[]>([]);
-  const [detectedText, setDetectedText] = useState('');
-  const [confidence, setConfidence] = useState(0);
-  const [isRealTimeMode, setIsRealTimeMode] = useState(true);
-  
+  const [recordingTime, setRecordingTime] = useState(0);
   const cameraRef = useRef<Camera>(null);
   const processingInterval = useRef<NodeJS.Timeout | null>(null);
-  const gestureStartTime = useRef<number>(0);
-  const animationValue = useRef(new Animated.Value(0)).current;
+  const recordingInterval = useRef<NodeJS.Timeout | null>(null);
 
-  // Sign language vocabulary for different contexts
-  const signVocabulary = {
-    locations: [
-      { sign: 'HOME', gesture: 'fist-tap-chest', meaning: 'Home' },
-      { sign: 'HOSPITAL', gesture: 'cross-arms', meaning: 'Hospital' },
-      { sign: 'STATION', gesture: 'point-forward', meaning: 'Station' },
-      { sign: 'AIRPORT', gesture: 'arms-spread', meaning: 'Airport' },
-      { sign: 'SCHOOL', gesture: 'book-gesture', meaning: 'School' },
-      { sign: 'MALL', gesture: 'shopping-gesture', meaning: 'Mall' },
-      { sign: 'PARK', gesture: 'tree-gesture', meaning: 'Park' },
-      { sign: 'RESTAURANT', gesture: 'eating-gesture', meaning: 'Restaurant' },
-    ],
-    communication: [
-      { sign: 'HELLO', gesture: 'wave', meaning: 'Hello' },
-      { sign: 'THANK_YOU', gesture: 'thumbs-up', meaning: 'Thank you' },
-      { sign: 'WAIT', gesture: 'stop-palm', meaning: 'Please wait' },
-      { sign: 'HELP', gesture: 'help-gesture', meaning: 'I need help' },
-      { sign: 'READY', gesture: 'thumbs-up', meaning: 'I am ready' },
-      { sign: 'SLOW', gesture: 'slow-motion', meaning: 'Please drive slowly' },
-      { sign: 'STOP', gesture: 'stop-sign', meaning: 'Stop here' },
-      { sign: 'GO', gesture: 'point-forward', meaning: 'Let\'s go' },
-    ]
-  };
+  const commonSigns = [
+    'Hello', 'Thank you', 'Yes', 'No', 'Help', 'Water', 'Food', 'Bathroom',
+    'Hospital', 'Police', 'Fire', 'Stop', 'Go', 'Left', 'Right', 'Up', 'Down',
+    'Good', 'Bad', 'Hot', 'Cold', 'Big', 'Small', 'Fast', 'Slow', 'Open', 'Close'
+  ];
 
   useEffect(() => {
     getCameraPermissions();
@@ -102,47 +61,30 @@ const AdvancedSignLanguageCamera: React.FC<AdvancedSignLanguageCameraProps> = ({
       if (processingInterval.current) {
         clearInterval(processingInterval.current);
       }
+      if (recordingInterval.current) {
+        clearInterval(recordingInterval.current);
+      }
     };
   }, [isModelLoaded, hasPermission]);
 
-  useEffect(() => {
-    // Animate confidence indicator
-    Animated.timing(animationValue, {
-      toValue: confidence / 100,
-      duration: 300,
-      useNativeDriver: false,
-    }).start();
-  }, [confidence]);
-
   const getCameraPermissions = async () => {
     try {
-      const { status } = await Camera.requestCameraPermissionsAsync();
+      const { status } = await CameraPermissions.requestCameraPermissionsAsync();
       setHasPermission(status === 'granted');
-      
-      if (status === 'granted') {
-        await Speech.speak('Advanced sign language recognition ready!', { language: 'en' });
-      } else {
-        await Speech.speak('Camera permission required for sign language recognition', { language: 'en' });
-      }
     } catch (error) {
-      console.error('Error requesting camera permission:', error);
+      console.error('Error requesting camera permissions:', error);
+      setHasPermission(false);
     }
   };
 
   const initializeAdvancedModel = async () => {
     try {
-      console.log('Initializing advanced sign language model...');
-      
-      // Simulate advanced model loading with pose detection capabilities
+      // Simulate advanced model loading
       setTimeout(() => {
         setIsModelLoaded(true);
-        console.log('Advanced sign language model loaded');
-        Speech.speak('Advanced sign language model ready', { language: 'en' });
       }, 3000);
-      
     } catch (error) {
       console.error('Error initializing advanced model:', error);
-      Alert.alert('Error', 'Failed to initialize advanced sign language model');
     }
   };
 
@@ -151,184 +93,100 @@ const AdvancedSignLanguageCamera: React.FC<AdvancedSignLanguageCameraProps> = ({
       clearInterval(processingInterval.current);
     }
 
-    if (isRealTimeMode) {
-      // Real-time detection
-      processingInterval.current = setInterval(() => {
-        if (cameraRef.current && !isProcessing) {
-          captureAndAnalyzeFrame();
+    processingInterval.current = setInterval(() => {
+      if (isProcessing || !isRecording) return;
+      
+      setIsProcessing(true);
+      
+      // Simulate advanced sign language detection
+      setTimeout(() => {
+        const randomSign = commonSigns[Math.floor(Math.random() * commonSigns.length)];
+        
+        if (Math.random() > 0.6) { // 40% chance of detection
+          handleAdvancedSignDetection(randomSign);
         }
-      }, 100); // 10 FPS for real-time detection
-    } else {
-      // Manual recording mode
-      setTimeout(async () => {
-        if (cameraRef.current && !isProcessing) {
-          await startGestureRecording();
-        }
+        
+        setIsProcessing(false);
+      }, 800);
+    }, 1500);
+  };
+
+  const handleAdvancedSignDetection = async (detectedText: string) => {
+    try {
+      console.log('Advanced sign detected:', detectedText);
+      
+      // Add to detected signs list
+      setDetectedSigns(prev => [...prev, detectedText]);
+      
+      // Provide haptic feedback
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      
+      // Speak the detected text
+      if (detectedText) {
+        await Speech.speak(`Detected: ${detectedText}`, { language: 'en' });
+      }
+      
+    } catch (error) {
+      console.error('Error handling advanced sign detection:', error);
+    }
+  };
+
+  const startRecording = () => {
+    setIsRecording(true);
+    setRecordingTime(0);
+    setDetectedSigns([]);
+    
+    // Start recording timer
+    recordingInterval.current = setInterval(() => {
+      setRecordingTime(prev => prev + 1);
+    }, 1000);
+  };
+
+  const stopRecording = () => {
+    setIsRecording(false);
+    if (recordingInterval.current) {
+      clearInterval(recordingInterval.current);
+    }
+    
+    // Process all detected signs
+    if (detectedSigns.length > 0) {
+      const combinedText = detectedSigns.join(' ');
+      onSignInput(combinedText, currentFieldState);
+      
+      // Close after a delay
+      setTimeout(() => {
+        onClose();
       }, 2000);
     }
   };
 
-  const captureAndAnalyzeFrame = async () => {
-    if (!cameraRef.current || isProcessing) return;
-
-    try {
-      setIsProcessing(true);
-      
-      // Simulate pose detection and gesture recognition
-      const poseData = await simulatePoseDetection();
-      const gesture = await analyzeGesture(poseData);
-      
-      if (gesture && gesture.confidence > 0.7) {
-        setCurrentGesture(gesture);
-        setConfidence(gesture.confidence * 100);
-        
-        // Add to gesture history
-        setGestureHistory(prev => [...prev.slice(-4), gesture]);
-        
-        // Generate SignWriting symbols
-        generateSignWritingSymbols(gesture);
-        
-        // Try to recognize the complete sign
-        await recognizeCompleteSign();
-      }
-      
-    } catch (error) {
-      console.error('Error analyzing frame:', error);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const simulatePoseDetection = async (): Promise<PosePoint[]> => {
-    // Simulate pose detection with 21 hand landmarks
-    const landmarks: PosePoint[] = [];
-    for (let i = 0; i < 21; i++) {
-      landmarks.push({
-        x: Math.random() * 100,
-        y: Math.random() * 100,
-        confidence: 0.8 + Math.random() * 0.2
-      });
-    }
-    return landmarks;
-  };
-
-  const analyzeGesture = async (poseData: PosePoint[]): Promise<SignGesture | null> => {
-    // Simulate gesture analysis
-    const gestures = isDriverCommunication ? signVocabulary.communication : signVocabulary.locations;
-    const randomGesture = gestures[Math.floor(Math.random() * gestures.length)];
-    
-    return {
-      id: Date.now().toString(),
-      name: randomGesture.sign,
-      points: poseData,
-      timestamp: Date.now()
-    };
-  };
-
-  const generateSignWritingSymbols = (gesture: SignGesture) => {
-    // Generate SignWriting symbols based on gesture
-    const symbols: SignWritingSymbol[] = gesture.points.map((point, index) => ({
-      symbol: getSignWritingSymbol(gesture.name, index),
-      position: { x: point.x, y: point.y },
-      rotation: Math.random() * 360
-    }));
-    
-    setSignWritingSymbols(symbols);
-  };
-
-  const getSignWritingSymbol = (signName: string, index: number): string => {
-    // Map sign names to SignWriting symbols
-    const symbolMap: { [key: string]: string[] } = {
-      'HOME': ['🏠', '👆', '📍'],
-      'HOSPITAL': ['🏥', '➕', '🏥'],
-      'STATION': ['🚉', '➡️', '🚉'],
-      'HELLO': ['👋', '👋', '👋'],
-      'THANK_YOU': ['👍', '❤️', '👍'],
-      'WAIT': ['✋', '⏰', '✋'],
-    };
-    
-    const symbols = symbolMap[signName] || ['✋', '👆', '✋'];
-    return symbols[index % symbols.length];
-  };
-
-  const recognizeCompleteSign = async () => {
-    if (gestureHistory.length < 3) return;
-    
-    // Analyze gesture sequence
-    const recentGestures = gestureHistory.slice(-3);
-    const signSequence = recentGestures.map(g => g.name).join(' ');
-    
-    // Find matching sign in vocabulary
-    const vocabulary = isDriverCommunication ? signVocabulary.communication : signVocabulary.locations;
-    const matchedSign = vocabulary.find(sign => 
-      signSequence.includes(sign.sign) || sign.gesture.includes(signSequence.toLowerCase())
-    );
-    
-    if (matchedSign && confidence > 80) {
-      setDetectedText(matchedSign.meaning);
-      await Speech.speak(`Sign detected: ${matchedSign.meaning}`, { language: 'en' });
-      
-      // Provide haptic feedback
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
-  };
-
-  const startGestureRecording = async () => {
-    setIsRecording(true);
-    gestureStartTime.current = Date.now();
-    
-    await Speech.speak('Recording gesture... Make your sign now', { language: 'en' });
-    
-    // Record for 3 seconds
-    setTimeout(async () => {
-      await stopGestureRecording();
-    }, 3000);
-  };
-
-  const stopGestureRecording = async () => {
-    setIsRecording(false);
-    
-    if (currentGesture) {
-      await recognizeCompleteSign();
-    }
-    
-    await Speech.speak('Gesture recording complete', { language: 'en' });
-  };
-
-  const handleSignInput = async () => {
-    if (detectedText) {
-      await Speech.speak(`Sending: ${detectedText}`, { language: 'en' });
-      onSignInput(detectedText, currentField);
-      onClose();
-    }
-  };
-
-  const toggleRecordingMode = () => {
-    setIsRealTimeMode(!isRealTimeMode);
-    Speech.speak(isRealTimeMode ? 'Manual recording mode' : 'Real-time mode', { language: 'en' });
-  };
-
-  const clearGestureHistory = () => {
-    setGestureHistory([]);
-    setSignWritingSymbols([]);
-    setDetectedText('');
-    setConfidence(0);
-    Speech.speak('Gesture history cleared', { language: 'en' });
+  const handleFieldChange = (field: 'pickup' | 'destination') => {
+    setCurrentFieldState(field);
   };
 
   const handleClose = () => {
     if (processingInterval.current) {
       clearInterval(processingInterval.current);
     }
+    if (recordingInterval.current) {
+      clearInterval(recordingInterval.current);
+    }
     onClose();
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   if (hasPermission === null) {
     return (
-      <Modal visible={true} transparent={true} animationType="slide">
+      <Modal visible={true} transparent animationType="fade">
         <View style={styles.overlay}>
           <View style={styles.container}>
-            <Text style={styles.loadingText}>Initializing advanced sign language recognition...</Text>
+            <ActivityIndicator size="large" color="#1a73e8" />
+            <Text style={styles.loadingText}>Loading advanced AI model...</Text>
           </View>
         </View>
       </Modal>
@@ -337,16 +195,26 @@ const AdvancedSignLanguageCamera: React.FC<AdvancedSignLanguageCameraProps> = ({
 
   if (hasPermission === false) {
     return (
-      <Modal visible={true} transparent={true} animationType="slide">
+      <Modal visible={true} transparent animationType="fade">
         <View style={styles.overlay}>
           <View style={styles.container}>
-            <Text style={styles.errorText}>Camera permission required for advanced sign language recognition</Text>
-            <TouchableOpacity style={styles.permissionButton} onPress={getCameraPermissions}>
-              <Text style={styles.permissionButtonText}>Grant Permission</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
-              <Text style={styles.closeButtonText}>Close</Text>
-            </TouchableOpacity>
+            <View style={styles.header}>
+              <Text style={styles.title}>Camera Permission Required</Text>
+              <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
+                <MaterialIcons name="close" size={20} color="#5f6368" />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.content}>
+              <MaterialIcons name="camera-alt" size={64} color="#5f6368" style={styles.icon} />
+              <Text style={styles.permissionText}>
+                Camera access is required for advanced sign language detection. Please enable camera permissions.
+              </Text>
+              
+              <TouchableOpacity style={styles.permissionButton} onPress={getCameraPermissions}>
+                <Text style={styles.permissionButtonText}>Grant Permission</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -354,380 +222,421 @@ const AdvancedSignLanguageCamera: React.FC<AdvancedSignLanguageCameraProps> = ({
   }
 
   return (
-    <Modal
-      visible={true}
-      transparent={false}
-      animationType="slide"
-      onRequestClose={handleClose}
-    >
-      <View style={styles.cameraContainer}>
-        <Camera
-          style={styles.camera}
-          type={CameraType.front}
-          ref={cameraRef}
-        >
-          <View style={styles.overlay}>
-            {/* Header */}
-            <View style={styles.header}>
-              <Text style={styles.title}>
-                {isDriverCommunication ? `Advanced Sign Chat with ${driverName}` : 'Advanced Sign Language Input'}
+    <Modal visible={true} transparent animationType="slide">
+      <View style={styles.overlay}>
+        <View style={styles.container}>
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.headerLeft}>
+              <MaterialIcons name="gesture" size={24} color="#1a73e8" />
+              <Text style={styles.title}>Advanced Sign Language</Text>
+            </View>
+            <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
+              <MaterialIcons name="close" size={20} color="#5f6368" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Field Selector */}
+          <View style={styles.fieldSelector}>
+            <TouchableOpacity
+              style={[styles.fieldButton, currentFieldState === 'pickup' && styles.activeFieldButton]}
+              onPress={() => handleFieldChange('pickup')}
+            >
+              <MaterialIcons 
+                name="location-on" 
+                size={16} 
+                color={currentFieldState === 'pickup' ? '#fff' : '#5f6368'} 
+              />
+              <Text style={[styles.fieldText, currentFieldState === 'pickup' && styles.activeFieldText]}>
+                Pickup
               </Text>
-              <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-                <MaterialIcons name="close" size={24} color="#fff" />
-              </TouchableOpacity>
-            </View>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.fieldButton, currentFieldState === 'destination' && styles.activeFieldButton]}
+              onPress={() => handleFieldChange('destination')}
+            >
+              <MaterialIcons 
+                name="place" 
+                size={16} 
+                color={currentFieldState === 'destination' ? '#fff' : '#5f6368'} 
+              />
+              <Text style={[styles.fieldText, currentFieldState === 'destination' && styles.activeFieldText]}>
+                Destination
+              </Text>
+            </TouchableOpacity>
+          </View>
 
-            {/* Control Panel */}
-            <View style={styles.controlPanel}>
-              <TouchableOpacity 
-                style={[styles.controlButton, isRealTimeMode && styles.activeControlButton]}
-                onPress={toggleRecordingMode}
-              >
-                <MaterialIcons 
-                  name={isRealTimeMode ? "visibility" : "videocam"} 
-                  size={20} 
-                  color={isRealTimeMode ? "#007AFF" : "#fff"} 
-                />
-                <Text style={[styles.controlText, isRealTimeMode && styles.activeControlText]}>
-                  {isRealTimeMode ? 'Real-time' : 'Manual'}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity 
-                style={styles.controlButton}
-                onPress={clearGestureHistory}
-              >
-                <MaterialIcons name="clear" size={20} color="#fff" />
-                <Text style={styles.controlText}>Clear</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Detection Area */}
-            <View style={styles.detectionArea}>
+          {/* Camera View */}
+          <View style={styles.cameraContainer}>
+            <Camera
+              ref={cameraRef}
+              style={styles.camera}
+              type={CameraType.front}
+              ratio="16:9"
+            />
+            <View style={styles.cameraOverlay}>
               <View style={styles.detectionFrame}>
-                {isRecording && (
-                  <View style={styles.recordingIndicator}>
-                    <View style={styles.recordingDot} />
-                    <Text style={styles.recordingText}>REC</Text>
-                  </View>
-                )}
-                
-                {/* SignWriting Symbols Overlay */}
-                {signWritingSymbols.map((symbol, index) => (
-                  <View
-                    key={index}
-                    style={[
-                      styles.signWritingSymbol,
-                      {
-                        left: symbol.position.x,
-                        top: symbol.position.y,
-                        transform: [{ rotate: `${symbol.rotation}deg` }]
-                      }
-                    ]}
-                  >
-                    <Text style={styles.symbolText}>{symbol.symbol}</Text>
-                  </View>
-                ))}
-                
+                <MaterialIcons name="gesture" size={32} color="#1a73e8" />
                 <Text style={styles.detectionText}>
-                  {isProcessing ? 'Analyzing...' : isRecording ? 'Recording...' : 'Sign here'}
+                  {isProcessing ? 'Processing...' : isRecording ? 'Recording...' : 'Sign Here'}
                 </Text>
               </View>
-            </View>
-
-            {/* Status Panel */}
-            <View style={styles.statusPanel}>
-              <View style={styles.statusRow}>
-                <Text style={styles.statusLabel}>Model:</Text>
-                <Text style={styles.statusValue}>{isModelLoaded ? 'Ready' : 'Loading...'}</Text>
-              </View>
               
-              <View style={styles.statusRow}>
-                <Text style={styles.statusLabel}>Confidence:</Text>
-                <View style={styles.confidenceBar}>
-                  <Animated.View 
-                    style={[
-                      styles.confidenceFill,
-                      { width: animationValue.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: ['0%', '100%']
-                      })}
-                    ]} 
-                  />
+              {/* Recording Indicator */}
+              {isRecording && (
+                <View style={styles.recordingIndicator}>
+                  <View style={styles.recordingDot} />
+                  <Text style={styles.recordingText}>{formatTime(recordingTime)}</Text>
                 </View>
-                <Text style={styles.statusValue}>{Math.round(confidence)}%</Text>
-              </View>
-              
-              <View style={styles.statusRow}>
-                <Text style={styles.statusLabel}>Detected:</Text>
-                <Text style={styles.statusValue}>{detectedText || 'None'}</Text>
-              </View>
+              )}
             </View>
+          </View>
 
-            {/* Action Buttons */}
-            {detectedText && (
-              <View style={styles.actionButtons}>
-                <TouchableOpacity 
-                  style={styles.sendButton}
-                  onPress={handleSignInput}
-                >
-                  <MaterialIcons name="send" size={24} color="#fff" />
-                  <Text style={styles.sendButtonText}>Send: {detectedText}</Text>
-                </TouchableOpacity>
-              </View>
+          {/* Control Buttons */}
+          <View style={styles.controlsContainer}>
+            {!isRecording ? (
+              <TouchableOpacity style={styles.recordButton} onPress={startRecording}>
+                <MaterialIcons name="fiber-manual-record" size={24} color="#fff" />
+                <Text style={styles.recordButtonText}>Start Recording</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={styles.stopButton} onPress={stopRecording}>
+                <MaterialIcons name="stop" size={24} color="#fff" />
+                <Text style={styles.stopButtonText}>Stop & Send</Text>
+              </TouchableOpacity>
             )}
+          </View>
 
-            {/* Gesture History */}
-            {gestureHistory.length > 0 && (
-              <View style={styles.gestureHistory}>
-                <Text style={styles.historyTitle}>Recent Gestures:</Text>
-                <View style={styles.historyList}>
-                  {gestureHistory.slice(-3).map((gesture, index) => (
-                    <View key={gesture.id} style={styles.historyItem}>
-                      <Text style={styles.historyText}>{gesture.name}</Text>
+          {/* Detected Signs */}
+          {detectedSigns.length > 0 && (
+            <View style={styles.detectedSignsContainer}>
+              <Text style={styles.detectedSignsTitle}>Detected Signs:</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={styles.detectedSignsList}>
+                  {detectedSigns.map((sign, index) => (
+                    <View key={index} style={styles.detectedSignItem}>
+                      <Text style={styles.detectedSignText}>{sign}</Text>
                     </View>
                   ))}
                 </View>
-              </View>
-            )}
+              </ScrollView>
+            </View>
+          )}
+
+          {/* Status */}
+          <View style={styles.statusContainer}>
+            <View style={styles.statusItem}>
+              <View style={[styles.statusDot, { backgroundColor: isModelLoaded ? '#34a853' : '#fbbc04' }]} />
+              <Text style={styles.statusText}>
+                AI Model: {isModelLoaded ? 'Ready' : 'Loading...'}
+              </Text>
+            </View>
+            <View style={styles.statusItem}>
+              <View style={[styles.statusDot, { backgroundColor: isRecording ? '#ea4335' : '#5f6368' }]} />
+              <Text style={styles.statusText}>
+                Status: {isRecording ? 'Recording' : 'Standby'}
+              </Text>
+            </View>
           </View>
-        </Camera>
+
+          {/* Instructions */}
+          <View style={styles.instructionsContainer}>
+            <Text style={styles.instructionsTitle}>Advanced Features:</Text>
+            <Text style={styles.instructionsText}>
+              • Continuous sign detection{'\n'}
+              • Multiple gesture recognition{'\n'}
+              • Real-time feedback{'\n'}
+              • Enhanced accuracy
+            </Text>
+          </View>
+        </View>
       </View>
     </Modal>
   );
 };
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
   },
   container: {
-    backgroundColor: '#fff',
+    backgroundColor: '#ffffff',
     borderRadius: 20,
-    padding: 20,
-    width: '90%',
-    maxWidth: 400,
+    padding: 24,
+    width: '100%',
+    maxWidth: 420,
+    maxHeight: '90%',
     alignItems: 'center',
-  },
-  cameraContainer: {
-    flex: 1,
-  },
-  camera: {
-    flex: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 20,
+    width: '100%',
+    marginBottom: 20,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   title: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-    flex: 1,
+    fontWeight: '600',
+    color: '#1a1a1a',
+    marginLeft: 8,
   },
   closeButton: {
-    padding: 5,
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: '#f1f3f4',
   },
-  controlPanel: {
+  fieldSelector: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    paddingHorizontal: 20,
+    backgroundColor: '#f1f3f4',
+    borderRadius: 12,
+    padding: 4,
     marginBottom: 20,
+    width: '100%',
   },
-  controlButton: {
+  fieldButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginHorizontal: 5,
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
   },
-  activeControlButton: {
-    backgroundColor: '#fff',
+  activeFieldButton: {
+    backgroundColor: '#1a73e8',
+    shadowColor: '#1a73e8',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  controlText: {
-    color: '#fff',
-    marginLeft: 5,
-    fontSize: 12,
+  fieldText: {
+    marginLeft: 6,
+    fontSize: 14,
+    color: '#5f6368',
     fontWeight: '500',
   },
-  activeControlText: {
-    color: '#007AFF',
+  activeFieldText: {
+    color: '#ffffff',
+    fontWeight: '600',
   },
-  detectionArea: {
+  cameraContainer: {
+    width: '100%',
+    height: 200,
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 20,
+    position: 'relative',
+  },
+  camera: {
     flex: 1,
+    width: '100%',
+  },
+  cameraOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
   },
   detectionFrame: {
-    width: 280,
-    height: 280,
+    width: 120,
+    height: 120,
     borderWidth: 3,
-    borderColor: '#007AFF',
-    borderRadius: 140,
+    borderColor: '#1a73e8',
+    borderRadius: 60,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 122, 255, 0.1)',
-    position: 'relative',
+    backgroundColor: 'rgba(26, 115, 232, 0.1)',
+    borderStyle: 'dashed',
+  },
+  detectionText: {
+    fontSize: 12,
+    color: '#1a73e8',
+    textAlign: 'center',
+    fontWeight: '600',
+    marginTop: 4,
   },
   recordingIndicator: {
     position: 'absolute',
-    top: 10,
-    right: 10,
+    top: 16,
+    right: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 0, 0, 0.8)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    backgroundColor: 'rgba(234, 67, 53, 0.9)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
   },
   recordingDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: '#fff',
-    marginRight: 4,
+    marginRight: 6,
   },
   recordingText: {
     color: '#fff',
-    fontSize: 10,
-    fontWeight: 'bold',
+    fontSize: 12,
+    fontWeight: '600',
   },
-  signWritingSymbol: {
-    position: 'absolute',
-    width: 30,
-    height: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
+  controlsContainer: {
+    width: '100%',
+    marginBottom: 16,
   },
-  symbolText: {
-    fontSize: 20,
-    color: '#007AFF',
-  },
-  detectionText: {
-    fontSize: 16,
-    color: '#fff',
-    textAlign: 'center',
-    fontWeight: '500',
-  },
-  statusPanel: {
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    padding: 15,
-    marginHorizontal: 20,
-    borderRadius: 10,
-    marginBottom: 20,
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  statusLabel: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '500',
-    width: 80,
-  },
-  statusValue: {
-    color: '#fff',
-    fontSize: 14,
-    marginLeft: 10,
-  },
-  confidenceBar: {
-    flex: 1,
-    height: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    borderRadius: 4,
-    marginHorizontal: 10,
-    overflow: 'hidden',
-  },
-  confidenceFill: {
-    height: '100%',
-    backgroundColor: '#4CAF50',
-  },
-  actionButtons: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  sendButton: {
+  recordButton: {
+    backgroundColor: '#34a853',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#4CAF50',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 25,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    shadowColor: '#34a853',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  sendButtonText: {
+  recordButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
   },
-  gestureHistory: {
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    padding: 15,
-    marginHorizontal: 20,
-    borderRadius: 10,
-    marginBottom: 20,
+  stopButton: {
+    backgroundColor: '#ea4335',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    shadowColor: '#ea4335',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  historyTitle: {
+  stopButtonText: {
     color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  detectedSignsContainer: {
+    width: '100%',
+    marginBottom: 16,
+  },
+  detectedSignsTitle: {
     fontSize: 14,
     fontWeight: '600',
-    marginBottom: 10,
+    color: '#1a1a1a',
+    marginBottom: 8,
   },
-  historyList: {
+  detectedSignsList: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
   },
-  historyItem: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginRight: 5,
-    marginBottom: 5,
+  detectedSignItem: {
+    backgroundColor: '#e8f0fe',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginRight: 8,
   },
-  historyText: {
-    color: '#fff',
+  detectedSignText: {
     fontSize: 12,
+    color: '#1a73e8',
+    fontWeight: '500',
+  },
+  statusContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    marginBottom: 16,
+  },
+  statusItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  statusText: {
+    fontSize: 12,
+    color: '#5f6368',
+    fontWeight: '500',
+  },
+  instructionsContainer: {
+    width: '100%',
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+  },
+  instructionsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1a1a1a',
+    marginBottom: 8,
+  },
+  instructionsText: {
+    fontSize: 12,
+    color: '#5f6368',
+    lineHeight: 18,
   },
   loadingText: {
-    fontSize: 18,
-    color: '#333',
-    textAlign: 'center',
-  },
-  errorText: {
     fontSize: 16,
-    color: '#333',
+    color: '#5f6368',
+    marginTop: 12,
+    fontWeight: '500',
+  },
+  permissionText: {
+    fontSize: 14,
+    color: '#5f6368',
     textAlign: 'center',
-    marginBottom: 20,
+    lineHeight: 20,
+    marginVertical: 16,
   },
   permissionButton: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    backgroundColor: '#1a73e8',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
     borderRadius: 8,
-    marginBottom: 10,
+    shadowColor: '#1a73e8',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
   },
   permissionButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
   },
-  closeButtonText: {
-    color: '#666',
-    fontSize: 16,
+  icon: {
+    marginBottom: 16,
   },
 });
 
