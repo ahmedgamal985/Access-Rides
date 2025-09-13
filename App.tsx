@@ -67,6 +67,8 @@ const App: React.FC = () => {
   const [showDriverCommunication, setShowDriverCommunication] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState<any>(null);
   const [isVoiceOverMode, setIsVoiceOverMode] = useState(false);
+  const [showSignLanguage, setShowSignLanguage] = useState(false);
+  const [showAdvancedSignLanguage, setShowAdvancedSignLanguage] = useState(false);
   
   // Refs for direct text input manipulation
   const pickupInputRef = useRef<TextInput>(null);
@@ -593,6 +595,18 @@ const App: React.FC = () => {
             >
               <MaterialIcons name="volume-up" size={20} color="#666" />
             </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.inputButton}
+              onPress={() => {
+                console.log('👋 Sign Language button clicked for pickup');
+                setCurrentField('pickup');
+                setShowSignLanguage(true);
+                handleVoiceOver('Sign Language button for pickup location');
+              }}
+              accessibilityLabel="Sign Language input for pickup location"
+            >
+              <MaterialIcons name="gesture" size={20} color="#666" />
+            </TouchableOpacity>
           </View>
 
           {/* Destination */}
@@ -634,6 +648,18 @@ const App: React.FC = () => {
               accessibilityLabel="Read destination aloud"
             >
               <MaterialIcons name="volume-up" size={20} color="#666" />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.inputButton}
+              onPress={() => {
+                console.log('👋 Sign Language button clicked for destination');
+                setCurrentField('destination');
+                setShowSignLanguage(true);
+                handleVoiceOver('Sign Language button for destination');
+              }}
+              accessibilityLabel="Sign Language input for destination"
+            >
+              <MaterialIcons name="gesture" size={20} color="#666" />
             </TouchableOpacity>
           </View>
         </View>
@@ -728,6 +754,26 @@ const App: React.FC = () => {
           <VoiceRecorder
             onVoiceInput={handleVoiceInput}
             onClose={() => setIsVoiceMode(false)}
+            currentField={currentField}
+          />
+        </View>
+      )}
+
+      {showSignLanguage && (
+        <View style={styles.modalOverlay}>
+          <SignLanguageCamera
+            onSignInput={handleSignLanguageInput}
+            onClose={() => setShowSignLanguage(false)}
+            currentField={currentField}
+          />
+        </View>
+      )}
+
+      {showAdvancedSignLanguage && (
+        <View style={styles.modalOverlay}>
+          <AdvancedSignLanguageCamera
+            onSignInput={handleSignLanguageInput}
+            onClose={() => setShowAdvancedSignLanguage(false)}
             currentField={currentField}
           />
         </View>
@@ -906,7 +952,7 @@ const App: React.FC = () => {
                   <Text style={styles.communicationButtonSubtext}>Talk with your driver</Text>
                 </TouchableOpacity>
                 
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.communicationButton}
                   onPress={() => {
                     setShowDriverCommunication(false);
@@ -916,6 +962,18 @@ const App: React.FC = () => {
                   <MaterialIcons name="mic" size={40} color="#007AFF" />
                   <Text style={styles.communicationButtonText}>Voice Message</Text>
                   <Text style={styles.communicationButtonSubtext}>Send voice message</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={styles.communicationButton}
+                  onPress={() => {
+                    setShowDriverCommunication(false);
+                    setShowAdvancedSignLanguage(true);
+                  }}
+                >
+                  <MaterialIcons name="gesture" size={40} color="#FF6B35" />
+                  <Text style={styles.communicationButtonText}>Sign Language</Text>
+                  <Text style={styles.communicationButtonSubtext}>Use camera for sign language</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -957,7 +1015,8 @@ const App: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#ffffff',
+    paddingTop: Platform.OS === 'web' ? 0 : StatusBar.currentHeight || 0,
   },
   scrollView: {
     flex: 1,
@@ -967,10 +1026,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: '#fff',
+    paddingVertical: 20,
+    backgroundColor: '#ffffff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   headerTitle: {
     fontSize: 24,
@@ -1140,11 +1204,19 @@ const styles = StyleSheet.create({
   locationField: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    marginBottom: 10,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    marginBottom: 16,
+    marginHorizontal: 20,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
   locationIcon: {
     marginRight: 10,
@@ -1155,8 +1227,12 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   inputButton: {
-    padding: 8,
-    marginLeft: 5,
+    padding: 12,
+    marginLeft: 8,
+    borderRadius: 8,
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
   },
   fareContainer: {
     flexDirection: 'row',
@@ -1296,8 +1372,10 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
     zIndex: 1000,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   communicationModal: {
     flex: 1,
